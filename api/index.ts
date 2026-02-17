@@ -1,18 +1,18 @@
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import express from 'express';
-import serverlessExpress from '@codegenie/serverless-express';
+import type { Request, Response } from 'express';
 import { AppModule } from '../src/app.module';
 
-let cachedServer: ReturnType<typeof serverlessExpress>;
+let cachedExpressApp: ReturnType<typeof express>;
 
 async function bootstrap() {
-  const expressApp = express();
+  if (cachedExpressApp) {
+    return cachedExpressApp;
+  }
 
-  const app = await NestFactory.create(
-    AppModule,
-    new ExpressAdapter(expressApp),
-  );
+  const server = express();
+  const app = await NestFactory.create(AppModule, new ExpressAdapter(server));
 
   app.enableCors({
     origin: '*',
@@ -22,13 +22,11 @@ async function bootstrap() {
 
   await app.init();
 
-  return serverlessExpress({ app: expressApp });
+  cachedExpressApp = server;
+  return cachedExpressApp;
 }
 
-export default async function handler(req: any, res: any) {
-  if (!cachedServer) {
-    cachedServer = await bootstrap();
-  }
-
-  return cachedServer(req, res);
+export default async function handler(req: Request, res: Response) {
+  const app = await bootstrap();
+  app(req, res);
 }
